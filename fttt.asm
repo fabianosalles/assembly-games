@@ -9,7 +9,7 @@
 	include 'macro/proc32.inc'
 
 ;
-; constants gerais
+; constants 
 ;
     PLAYER_NAME_SIZE    equ 33   ; 32 bytes para o nome +1 para o $
     P1_CHAR             equ 78h  ; x
@@ -20,8 +20,19 @@
     GAME_TEXT_SHADOW    equ 08h  ; dark gray        
     GAME_TEXT_SUCCESS   equ 0Ah  ; light green
     GAME_TEXT_ERRO      equ 0Ch  ; light red
-      
-; estados do jogo
+
+	SYMBOL_LIGHT_SMILE	equ	01h
+	SYMBOL_DARK_SMILE	equ	02h
+	SYMBOL_HEART		equ 03h
+	SYMBOL_DIAMOND		equ 04h
+	SYMBOL_CLUBS		equ 05h
+	SYMBOL_SPADES		equ 06h 
+	SYMBOL_MALE			equ 0Ch
+	SYMBOL_FEMALE		equ 0Bh
+	SYMBOL_X			equ 78h
+	SYMBOL_O			equ 6Fh
+
+; game states
     ST_MENU            equ 0h ; o jogo está no menu inicial
     ST_JOGANDO         equ 1h ; o jogo está rolando
     ST_GAME_OVER       equ 2h ; game over  
@@ -32,48 +43,43 @@ segment text
     player_1            DB P1_CHAR, P1_COLOR, "Player 1                        $"
     player_2            DB P2_CHAR, P2_COLOR, "Player 2                        $"
     
-    game_state          DB 0  ; 0 = menu, 1 = jogando, 2 = game over
+    game_state          DB 0  ; 0 = menu, 1 = playing, 2 = game over
     current_player      DB 1      
     current_color       DB 0
     current_char        DB 0
     new_line            DB 13,10,"$" ; new line chars    
-    game_over_message   DB "FIM DE JOGO", 13, 10, "$"        
+    game_over_message   DB "GAME OVER", 13, 10, "$"        
     str_game_divider    DB '-------------------------------------------------------------------------------$'
-    str_game_header     DB '                            [  ASM TIC TAC TOE  ]            by Fabiano Salles $'
-    
-    ; array de com 9 (3X3) elementos para armazenar o grid
-    ; e verificar a lógica de vitória/derrota
+    str_game_header     DB '                             [  ASM TIC TAC TOE  ]                             $'
     grid                DB 9 DUP(0)  
-               
-    ; buffer com o que desenho do grid                                
     grid_buffer         DB '                                     |   |   ', 13, 10
                         DB '                                  ---+---+---', 13, 10
                         DB '                                     |   |   ', 13, 10
                         DB '                                  ---+---+---', 13, 10
-                        DB '                                     |   |   ', 13, 10, '$'
-                                                
-    str_player1_set_name  DB 'Player 1, insira seu nome : $' 
-    str_player2_set_name  DB 'Player 2, insira seu nome : $' 
-    str_player_set_color DB 'Escolha sua cor           : $'
-    str_player_set_char  DB 'Escolha seu simbolo       : $'
-    str_ftr_simbolos     DB 'Simbolos  : 1 ', 01   ; sorriso claro
-                                   DB ' 2 ', 02    ; sorriso escuro
-                                   DB ' 3 ', 03    ; copa (coração)
-                                   DB ' 4 ', 04    ; losango (ouro)
-                                   DB ' 5 ', 05    ; paus
-                                   DB ' 6 ', 06    ; espadas
-                                   DB ' 7 ', 11    ; macho  
-                                   DB ' 8 ', 12    ; fêmea
-                                   DB ' 9 x  0 o  : $'
-    str_ftr_cores       DB 'Cores     : 1 (branco), 2 (azul), 3 (verde), 4 (vermelho)$'
+                        DB '                                     |   |   ', 13, 10, '$'                                                
+    str_player1_set_name  	DB 'Player 1, inform your name : $' 
+    str_player2_set_name  	DB 'Player 2, inform your name : $' 
+    str_player_set_color 	DB 'Choose your colour         : $'
+    str_player_set_char  	DB 'Choose your symbol         : $'
+	str_ftr_cores       	DB 'Colors   : 1.white 2.blue 3.green 4.red$'
+    str_ftr_simbolos     	DB 'Symbols  : 1.', 01   ; sorriso claro
+                                   DB ' 2.', 02    ; sorriso escuro
+                                   DB ' 3.', 03    ; copa (coração)
+                                   DB ' 4.', 04    ; losango (ouro)
+                                   DB ' 5.', 05    ; paus
+                                   DB ' 6.', 06    ; espadas
+                                   DB ' 7.', 11    ; macho  
+                                   DB ' 8.', 12    ; fêmea
+                                   DB ' 9.x 0.o  $'
+    
     str_ok              DB 'Ok!$'
-    str_iniciando       DB 'Iniciando...$'
-    str_type_position   DB ', informe uma posicao : $'
-    str_vitoria         DB 'VITORIA!!!', 13, 10
-                        DB 'O jogador $' 
-    str_votoria_suf     DB ' ganhou!$' ; sufixo;
+    str_iniciando       DB 'Starting...$'
+    str_type_position   DB ', inform a position : $'
+    str_vitoria         DB 'VICTORY!!!', 13, 10
+                        DB 'The player $' 
+    str_votoria_suf     DB ' wins!$' ; sufixo;
     str_game_over       DB 'Game over!', 13, 10
-                        DB 'Nao houve vencedor.$'   
+                        DB 'TIE!$'   
     str_bye             DB ' $'              
   
 
@@ -89,9 +95,7 @@ macro putc char {
 	pop     ax
 }
 
-;-------------------------------------------------------
-; PRINT MACRO 
-;-------------------------------------------------------
+
 ; dx = endereço do texto
 ; bx = cor 
 ; cx = o número de caracteres a colorir
@@ -103,7 +107,6 @@ macro print texto, tamanho, cor{
     int     10h                 ; INT 10h/AH=9 - write character and attribute at cursor position.
     int     21h                 ; INT 21h/AH=9 - output of a string at DS:DX. String must be terminated by '$'. 
 }
-
 
 
 start:    
@@ -148,9 +151,6 @@ get_key:
     ret     
 
     
-;-------------------------------------------------------
-; GOTOXY MACRO 
-;-------------------------------------------------------
 macro gotoXY linha, coluna{
     push    ax
     push    bx
@@ -180,25 +180,23 @@ macro print_addr texto, position, tamanho, cor{
 
 
 ;
-; recebe o char em al
+; char must be in al register
 ;
 proc print_char 	
     cmp     al, 0
     je      print_char_exit
-        
-    push    ax
+    
     push    bx
     push    cx                 
 
-    mov     ah, 9h    
+    mov     ah, 9h              ; function 9h write character and attribute at cursor position.        
     mov     bh, 0               ; page number
-    mov     bl, current_color   ; color atrib
+    mov     bl, [current_color] ; color atrib
     mov     cx, 1               ; number of times to print the char
-    int     10h                 ; INT 10h/AH=9 - write character and attribute at cursor position.    
+    int     10h                 ; call the function
                                 
     pop     cx
     pop     bx
-    pop     ax
                 
 	print_char_exit:
     ret
@@ -224,18 +222,18 @@ beep:
 ;le_jogada macro jogador
 le_jogada:
 	inicio:    
-		call     get_key                    ; le a jogada em ah
-		cmp      al, 30h       
-		jl      invalido                    ; o valor deve estar entre 1 e 9 (31h e 39h em ascii)
-		cmp     al, 39h                     ; vamos validar com 2 cmp's
+		call    get_key                    ; le a jogada em ah
+		cmp     al, 31h       
+		jl      invalido                   ; o valor deve estar entre 1 e 9 (31h e 39h em ascii)
+		cmp     al, 39h                    ; vamos validar com 2 cmp's
 		jg      invalido
 		
-		sub     al, 31h                     ; converte o ascii no índice o grid
-		lea     si, [grid]                    ; carrega o endereço do grid em si        
-		add     si, ax                      ; desloca di até a posição selecionada 
+		sub     al, 31h                   ; converte o ascii no índice o grid
+		mov     si, grid                  ; carrega o endereço do grid em si        
+		add     si, ax                    ; desloca di até a posição selecionada 	
 		
 		; temos um indice válio, mas ele está livre?    
-		cmp     word[ds:si], 0                  
+		cmp     byte[ds:si], 0                  		
 		jne     invalido    
 		
 		; configura o jogador
@@ -262,7 +260,7 @@ le_jogada:
 		ret
 
    
-;;
+;
 ; seleciona um símbolo da lista de opções
 ; os valores podem ser de 0 a 9
 ; retorna em al
@@ -273,13 +271,43 @@ select_player_symbol:
 		jl      invalid_symbol
 		cmp     al, 39h
 		jg      invalid_symbol     
-		sub     al, 30h                  ; converte o ascii em     
-		ret
-
+		sub     al, 30h                  ; converte o ascii em     		
+		
+; the symbol selection is valid. let's adjust the glyth code
+; fom 1 to 6 is already right
+		cmp		al, 0
+		je		set_symbol_0
+		cmp		al, 7
+		je		set_symbol_male
+		cmp		al, 8
+		je		set_symbol_female
+		cmp		al, 9
+		je		set_symbol_x
+		jmp 	invalid_symbol
+		
+	set_symbol_x:
+		mov		al, SYMBOL_X
+		jmp 	select_player_symbol_return
+		
+	set_symbol_0:		
+		mov		al, SYMBOL_O
+		jmp 	select_player_symbol_return
+		
+	set_symbol_male:
+		mov		al, SYMBOL_MALE
+		jmp 	select_player_symbol_return
+		
+	set_symbol_female:
+		mov		al, SYMBOL_FEMALE		
+		jmp 	select_player_symbol_return
+		
 	invalid_symbol:
 		call    beep
 		call    clear_last_char
 		jmp     read_symbol
+		
+	select_player_symbol_return:
+		ret
        
 ;
 ; selecina uma cor da lista de opções
@@ -308,9 +336,6 @@ clear_last_char:
    ret
 
 
-             
-                                                               
-; procedure imported from emu8086 include.                                                               
 ;***************************************************************
 ; This macro defines a procedure to get a $ terminated
 ; string from user, the received string is written to buffer
@@ -410,7 +435,7 @@ draw_grid:
 		
 	; 1. denha o  grid vazado  
 		gotoXY  0, 4
-		print grid_buffer, 300, GAME_TEXT_SHADOW
+		print grid_buffer, 370, GAME_TEXT_SHADOW
 
 	; 2. preenche os nove espaços com as jogadas realizadas        
 		mov     [current_color], 0      ; cor em cl    
@@ -691,8 +716,7 @@ ds_menu:
     gotoXY   0, 5
     print    str_game_divider, 80, GAME_TEXT_COLOR
     
-; GET P1 INFO
-; Vamos caputar as informações do jogar 1    
+; get player 1 info
     gotoXY   0, 7
     print    str_player1_set_name, 80, GAME_TEXT_COLOR
     
@@ -701,21 +725,20 @@ ds_menu:
     call    get_string              ; read string and override the buffer
     
     gotoXY  0, 8
-    print    str_player_set_char, 0, GAME_TEXT_COLOR    
+    print   str_player_set_char, 0, GAME_TEXT_COLOR    
     call    select_player_symbol    ; sleciona um símbolo e salva em ALs 
-    mov     [player_1+0], al          ; salva al no primeiro byte do player (simbolo)
+    mov     [player_1+0], al        ; salva al no primeiro byte do player (simbolo)
     
     gotoXY  0, 9
     print   str_player_set_color, 0, GAME_TEXT_COLOR
     call    select_player_color     ; le a cor do tecaldo e joga em al
     call    color_to_attibute       ; converte a opção selecionada em um atributo de cor 
-    mov     [player_1+1], al         ; salva al no segundo byte do player (cor)
+    mov     [player_1+1], al        ; salva al no segundo byte do player (cor)
                 
     gotoXY  0, 10
     print   str_ok, 3, GAME_TEXT_SUCCESS
 
-; GET P2 INFO
-; Vamos caputar as informações do jogar 2                 
+; get player 2 info
     gotoXY  0, 12                 
     print    str_player2_set_name, 80, GAME_TEXT_COLOR
     
@@ -746,16 +769,13 @@ ds_menu:
     jmp     ds_return    
 
 
-; Algoritmo:
-; 1. desenha grid
-; 2. captura jogada
-; 3. checa se ganhou   
-; 4. se não ganhou, muda o jogador
-ds_jogando: 
-    ; passo 1                             
+; Algorithm:
+; 1. draw the grid
+; 2. capture player move
+; 3. check for winner
+; 4. swap players
+ds_jogando:                              
     call    draw_grid
-             
-    ; passo 2    
     gotoXY  10, 10                                               ; posiciona o cursor do prompt
     cmp     [current_player], 1
     jne     dsj_player2
