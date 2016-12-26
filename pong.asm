@@ -1,9 +1,9 @@
 ;
 ; TicTacTe for 8086 processor using emu8086 sintax
 ; Fabiano Salles <fabiano.salles@gmail.com>
-; -------------------------------------------------------
-; This program run in VGA mode 13h using BIOS interrupts
-; -------------------------------------------------------
+; ------------------------------------------------------------
+; This program run in VGA mode 13h using direct VGA addressing
+; ------------------------------------------------------------
 
 use16 						; 16bit bin (dos COM)
 org	0x0100
@@ -19,9 +19,14 @@ include 'macro/struct.inc'
 	VGA_SEGMENT			equ gs
 	VGA_WORDS_COUNT		equ 0x7D00 		; number of words in display memory (320 * 200 / 2) 	
 	COLOR_WHITE			equ 0x0F 		; white over a black background
+	COLOR_GRAY			equ 0x08        ; gray over a black background
 	USE_VSYNC			equ 0		    ; 0=disabled, 1=enabled 
 	MAXX				equ 320-1
 	MAXY				equ 200-1
+	PLAYER_HEIGHT		equ 28
+	PLAYER_WIDTH		equ 4
+	PLAYER_OFFSET		equ 2 			; space between player and field
+	BALL_SIZE			equ 4
 	
 ; -------------------------------------------------------
 ;  DATA TYPES 
@@ -30,7 +35,14 @@ struct Ball
 	x			dw ?    				; max x = 320, a word is necessary
 	y			dw ?					; max y = 200, a byte is enough
 ends
-	
+
+struct Player
+	x			dw	?
+	y			dw	?
+	height		dw  PLAYER_HEIGHT
+	width		dw  PLAYER_WIDTH
+	score		dw  0
+ends
 
 ; -------------------------------------------------------
 ;  CODE
@@ -58,13 +70,16 @@ ends
         int 	0x10      		; invoke BIOS VIDEO service 
 	
 	init_vars:
+	;init players
+		mov [player1.x], PLAYER_OFFSET
+		mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
+		
+		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET+1
+		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)
+		
 	;centralize the ball on screen
-		mov ax, MAXX / 2
-		mov bx, MAXY / 2
-		shr	ax, 1
-		shr bx, 1
-		mov [ball.x], bx
-		mov [ball.y], ax	
+		mov [ball.x], (MAXX+1) / 2
+		mov [ball.y], (MAXY+1) / 2
 		
 	main_loop:
 	
@@ -77,31 +92,71 @@ ends
         xor     ax, ax     				; bk-fg pixel color (twice) 
         mov     cx, VGA_WORDS_COUNT 	; number of words in display memory (320 * 200 / 2) 
         rep     stosw     				; write two pixels each pass 
-
-	draw_ball:
-        ; Paint single pixel into offscreen buffer 
-        mov 	al, COLOR_WHITE
-        mov 	bx, [ball.x]     ; x 
-        mov 	di, [ball.y]     ; y 
-        call	set_pixel
-		
-	draw_field:
 	
+	draw_field:
+		
+		; Render the middle line (field divider)
+		mov     al, COLOR_GRAY
+		mov		bx, 0			; y
+		mov		di, 160 	; x
+		mov		cx, MAXY+1		; length
+		call 	line_v
+		
+		; Render left horizontal line
+		mov     al, COLOR_WHITE  	; color (white on black) 
+		mov		bx, 0			; y
+		mov		di, 0  			; x
+		mov		cx, MAXY+1		; length
+		call 	line_v
+		
+		; Render right horizontal line
+		mov		bx, 0			; y
+		mov		di, MAXX 		; x
+		mov		cx, MAXY+1		; length
+		call 	line_v
+		
 		; Render top line into offscreen buffer 
         mov     al, COLOR_WHITE  	; color (white on black) 
         mov     bx, 0     			; y 
         mov     di, 0     			; x 
-        mov     cx, 320   			; length 
+        mov     cx, MAXX+1  		; length 
         call    line_h
 
-        ; Render bottom line into offscreen buffer 
-        ;mov     al, COLOR_WHITE  	; color (white on black) 
-        mov     bx, 199   			; y 
+        ; Render bottom line into offscreen buffer         
+        mov     bx, MAXY   			; y 
         mov     di, 0     			; x 
-        mov     cx, 320   			; length 
-        call    line_h
+        mov     cx, MAXX+1   			; length 
+        call    line_h		
 		
-        ; Preload registers for fast swap 
+	draw_ball:
+        ; Paint single pixel into offscreen buffer         
+		mov		bx, [ball.y]					; y
+		mov 	di, [ball.x]					; x
+		sub		bx, BALL_SIZE / 2
+		sub     di, BALL_SIZE / 2
+		mov		cx, BALL_SIZE
+		mov		dx, BALL_SIZE
+		call 	fill_rect
+		
+		
+	draw_players:
+		; Draw player 1
+		mov		bx, [player1.y]					; y
+		mov 	di, [player1.x]					; x
+		mov		cx, [player1.width]
+		mov		dx, PLAYER_HEIGHT
+		call 	fill_rect
+		
+		; Draw player 2
+		mov		bx, [player2.y]					; y
+		mov 	di, [player2.x]					; x
+		mov		cx, [player2.width]
+		mov		dx, PLAYER_HEIGHT
+		call 	fill_rect		
+		
+  
+	swap_buffes:
+      ; Preload registers for fast swap 
         ; once vertical reset is detected 
         mov		ax, OFFSCREEN_SEGMENT  
         mov		ds, ax 
@@ -109,9 +164,7 @@ ends
         mov		ax, VGA_SEGMENT
         mov		es, ax 
         xor		di, di 		
-        mov		cx, VGA_WORDS_COUNT ; number of words to move (320 * 200 / 2) 
-
-	swap_buffes:
+        mov		cx, VGA_WORDS_COUNT ; number of words to move (320 * 200 / 2) 	
         ; Wait for vertical reset 
 if USE_VSYNC
         mov     dx,0x03DA 
@@ -129,8 +182,6 @@ end if
         ; Restore data segment register 
         mov     ax, cs 
         mov     ds, ax 
-		
-		
 		
 		; Wait for a keypress
 		mov		ah, 0x01 				; AH = sub-function (check for keystroke) 
@@ -229,104 +280,27 @@ end if
     fill_rect: 
         pusha 
         mov     si,320 
-        sub     si,cx  ; SI = offset to next scan line start 
-        shl     bx,6 
-        add     di,bx 
-        shl     bx,2 
-        add     di,bx 
+        sub     si, cx  ; SI = offset to next scan line start 
+        shl     bx, 6 
+        add     di, bx 
+        shl     bx, 2 
+        add     di, bx 
     .loop: 
         push    cx 
         rep     stosb 
         pop     cx 
-        add     di,si ; advance offset to next scan line start 
-        sub     dx,1  ; move up to the next y position 
+        add     di, si ; advance offset to next scan line start 
+        sub     dx, 1  ; move up to the next y position 
         jnz     .loop 
         popa 
         ret 		
-
+    
 		
 ; -------------------------------------------------------
 ; DATA 
 ; -------------------------------------------------------
 	ball	Ball		
+	player1 Player
+	player2 Player
 
 
-	
-;; -------------------------------------------------------
-;; PROGRAM MAIN SECTION
-;; -------------------------------------------------------
-;segment main
-;
-;	run:	
-;		mov	ax, 0013h		; set graphics mode 13h 
-;		int	10h
-;		call init_vars					
-;		call render							
-;	exit:		
-;		mov ah, INT16_READ_KEYPRESS
-;		int 16h				;espera por uma tecla qualquer			
-;		mov	ax, 0003h		; exit graphics mode
-;		int 10h	
-;		mov ax, 4C00h       ; al = retur code 0
-;		int 21h 			; return do dos		
-;	; end of program	
-;	
-;	init_vars:		
-;	;centralize the ball on screen
-;		mov ax, VGA_SCREEN_HEIGHT
-;		mov bx, VGA_SCREEN_WIDTH
-;		shr	ax, 1
-;		shr bx, 1
-;		mov [ball.x], bx
-;		mov [ball.y], ax
-;	;
-;	ret
-;	
-;	render:      	            
-;        call render_ball
-;	ret
-;	
-;	render_ball:	    	        	    
-;        putPixel word[ball.x], word[ball.y]
-;        putPixel 0, 0
-;        putPixel VGA_SCREEN_WIDTH-1, 0
-;        putPixel VGA_SCREEN_WIDTH-1, VGA_SCREEN_HEIGHT-1
-;        putPixel 0, VGA_SCREEN_HEIGHT-1
-;        
-;	ret  
-;	
-;	
-;    ;======================================================================== 
-;    ; fillRect - Renders color filled recatngle into offscreen buffer 
-;    ; 
-;    ; Input: 
-;    ;   BX = y 
-;    ;   DI = x 
-;    ;   CX = width 
-;    ;   DX = height 
-;    ;   AL = color 
-;    ;   ES = offscreen buffer segment 
-;    ;======================================================================== 
-;
-;    fillRect: 
-;        pusha 
-;        mov     si,320 
-;        sub     si,cx  ; SI = offset to next scan line start 
-;        shl     bx,6 
-;        add     di,bx 
-;        shl     bx,2 
-;        add     di,bx 
-;    .loop: 
-;        push    cx 
-;        rep     stosb 
-;        pop     cx 
-;        add     di,si ; advance offset to next scan line start 
-;        sub     dx,1  ; move up to the next y position 
-;        jnz     .loop 
-;        popa 
-;        ret	
-;			
-;;	
-;; end of main segment
-;;	
-;
