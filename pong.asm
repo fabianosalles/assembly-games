@@ -1,5 +1,5 @@
 ;
-; TicTacTe for 8086 processor using emu8086 sintax
+; Pong for 8086 processor using emu8086 syntax
 ; Fabiano Salles <fabiano.salles@gmail.com>
 ; ------------------------------------------------------------
 ; This program run in VGA mode 13h using direct VGA addressing
@@ -155,12 +155,10 @@ end if
 		
 	main_loop:
 	
-		PrepareBuffer		
-		
+		PrepareBuffer			
 		DrawField		
 		DrawBall
-		DrawPlayers		
-		
+		DrawPlayers				
 		SwapBuffers
   
 		
