@@ -19,13 +19,24 @@ include 'inc/vga13h.inc'
 	VGA_BASE			equ 0xA000	
 	VGA_SEGMENT			equ gs
 	VGA_WORDS_COUNT		equ 0x7D00 		; number of words in display memory (320 * 200 / 2) 	
-	USE_VSYNC			equ 0		    ; 0=disabled, 1=enabled 
+	USE_VSYNC			equ 1		    ; 0=disabled, 1=enabled 
 	MAXX				equ 320-1
 	MAXY				equ 200-1
 	PLAYER_HEIGHT		equ 28
 	PLAYER_WIDTH		equ 4
 	PLAYER_OFFSET		equ 2 			; space between player and field
 	BALL_SIZE			equ 4
+	
+	VK_SCAPE			equ 01h
+	VK_UP				equ 48h	
+	VK_DOWN				equ 50h
+	VK_LEFT				equ 4Bh			
+	VK_RIGHT			equ 4Dh			
+	
+;left arrow: 4Bh 
+;up arrow: 48h
+;right arrow: 4D
+;down arrow: 50 D0
 	
 ; -------------------------------------------------------
 ;  DATA TYPES 
@@ -40,6 +51,7 @@ include 'inc/vga13h.inc'
 		y			dw	?
 		height		dw  PLAYER_HEIGHT
 		width		dw  PLAYER_WIDTH
+		speed		dw  5
 		score		dw  0
 	ends
 	
@@ -107,13 +119,17 @@ end if
 		VertiLine 0, 0, SCREEN_H			; Render left horizontal line
 		VertiLine MAXX, 0, SCREEN_H			; Render right horizontal line
 		HorizLine 0, 0, SCREEN_W			; Render top line into offscreen buffer 
-		HorizLine 0, SCREEN_H, SCREEN_W 	; Render bottom line into offscreen buffer         	
+		HorizLine 0, MAXY, SCREEN_W 	; Render bottom line into offscreen buffer         	
 	}
 	
 	macro DrawPlayers{
 		SetDrawColor COLOR_WHITE
 		FillRect [player1.x], [player1.y], [player1.width], PLAYER_HEIGHT
 		FillRect [player2.x], [player2.y], [player2.width], PLAYER_HEIGHT		
+	}
+	
+	macro CaptureInput{
+		
 	}
 
 ; -------------------------------------------------------
@@ -156,32 +172,45 @@ end if
 	main_loop:
 	
 		PrepareBuffer			
+		CaptureInput
 		DrawField		
 		DrawBall
 		DrawPlayers				
 		SwapBuffers
-  
 		
-		; Wait for a keypress
-		mov		ah, 0x01 				; AH = sub-function (check for keystroke) 
-        int		0x16    				; invoke BIOS KEYBOARD service 
-        jz 		main_loop   			; continue to loop until keystroke is found 
+
+		in 		al, 060h    ; get key code		
+		cmp 	al, VK_SCAPE
+		je 		exit
+		
+		cmp 	al, VK_UP
+		je		up_pressed				
+		
+		cmp 	al, VK_DOWN
+		je		down_pressed					
+		
+		up_pressed:
+			sub     [player1.y], 5	
+			jmp  	key_end
+			
+		down_pressed:
+			add     [player1.y], 5		
+			jmp  	key_end
+
+		key_end:        		 
+			jmp 	main_loop   			
 
 	exit:
-        ; Remove keystroke from keyboard buffer 
-        mov 	ah, 0x00 				; AH = sub-function (remove keystroke) 
-        int 	0x16    				; invoke BIOS KEYBOARD service 
 
         ; Enter 80x25 text video mode 
-        mov 	ax, 0x0003 				; AH = sub-function (set video mode) 
+        mov 	ax, 0003h 				; AH = sub-function (set video mode) 
 										; AL = desired video mode 
-        int 	0x10      				; invoke BIOS VIDEO service 
+        int 	10h      				; invoke BIOS VIDEO service 
 
-        ; Return to operating system 
-        int     0x20 
+        ; Return to operating system (DOS)
+        int     20h
         jmp     $    ; just in case 
 		
-
 
     
 include 'inc/vga13h.asm'
@@ -192,5 +221,3 @@ include 'inc/vga13h.asm'
 	ball	Ball		
 	player1 Player
 	player2 Player
-
-
