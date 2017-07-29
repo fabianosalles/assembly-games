@@ -1,5 +1,5 @@
 ;
-; Pong for 8086 processor using emu8086 syntax
+; Pong for 8086 processor using fasm syntax
 ; Fabiano Salles <fabiano.salles@gmail.com>
 ; ------------------------------------------------------------
 ; This program run in VGA mode 13h using direct VGA addressing
@@ -8,53 +8,63 @@
 use16 						; 16bit bin (dos COM)
 org	0x0100
 
-include 'macro/struct.inc'
 include 'inc/vga13h.inc'
 
 ; -------------------------------------------------------
 ;  DEFINES
 ; -------------------------------------------------------
-	OFFSCREEN_BASE   	equ 0x1000
-	OFFSCREEN_SEGMENT	equ fs	
-	VGA_BASE			equ 0xA000	
-	VGA_SEGMENT			equ gs
-	VGA_WORDS_COUNT		equ 0x7D00 		; number of words in display memory (320 * 200 / 2) 	
-	USE_VSYNC			equ 1		    ; 0=disabled, 1=enabled 
-	MAXX				equ 320-1
-	MAXY				equ 200-1
-	PLAYER_HEIGHT		equ 28
-	PLAYER_WIDTH		equ 4
-	PLAYER_OFFSET		equ 2 			; space between player and field
-	BALL_SIZE			equ 4
+	OFFSCREEN_BASE   		equ 0x1000
+	OFFSCREEN_SEGMENT		equ fs
+	VGA_BASE					equ 0xA000
+	VGA_SEGMENT				equ gs
+	VGA_WORDS_COUNT		equ 0x7D00 ; number of words in display memory (320 * 200 / 2) 	
+	USE_VSYNC				equ 1		  ; 0=disabled, 1=enabled 
+	MAXX						equ 320-1
+	MAXY						equ 200-1
+	PLAYER_HEIGHT			equ 28
+	PLAYER_WIDTH			equ 4
+	PLAYER_OFFSET			equ 2 			; space between player and field
+	BALL_SIZE				equ 4
 	
-	VK_SCAPE			equ 01h
-	VK_UP				equ 48h	
-	VK_DOWN				equ 50h
-	VK_LEFT				equ 4Bh			
-	VK_RIGHT			equ 4Dh			
+	VK_SCAPE					equ 01h
+	VK_UP						equ 48h	
+	VK_DOWN					equ 50h
+	VK_LEFT					equ 4Bh			
+	VK_RIGHT					equ 4Dh			
 	
-;left arrow: 4Bh 
-;up arrow: 48h
+	jmp start
+	
+;left arrow	: 4Bh 
+;up arrow	: 48h
 ;right arrow: 4D
-;down arrow: 50 D0
+;down arrow	: 50 D0
 	
 ; -------------------------------------------------------
 ;  DATA TYPES 
 ; -------------------------------------------------------
-	struct Ball
-		x			dw ?    				; max x = 320, a word is necessary
-		y			dw ?					; max y = 200, a byte is enough
-	ends
+struc Ball x, y {
+		.x			dw x    				; max x = 320, a word is necessary
+		.y			dw y					; max y = 200, a byte is enough
+}
 
-	struct Player
-		x			dw	?
-		y			dw	?
-		height		dw  PLAYER_HEIGHT
-		width		dw  PLAYER_WIDTH
-		speed		dw  5
-		score		dw  0
-	ends
-	
+struc Player x, y, height, width, speed, score {
+		.x			dw	x
+		.y			dw	y
+		.height	dw height
+		.width	dw width
+		.speed	dw speed
+		.score	dw score
+}
+
+; -------------------------------------------------------
+; DATA 
+; -------------------------------------------------------
+	ball		Ball 0, 0		
+	player1 	Player ?, ?, PLAYER_HEIGHT, PLAYER_WIDTH, 5, 0
+	player2 	Player ?, ?, PLAYER_HEIGHT, PLAYER_WIDTH, 5, 0
+	lastKey	db ?
+
+
 ; -------------------------------------------------------
 ;  MACROS
 ; -------------------------------------------------------
@@ -102,12 +112,12 @@ end if
 	macro DrawBall{		
 		; Paint single pixel into offscreen buffer         
 		SetDrawColor COLOR_WHITE
-		mov		bx, [ball.y]					; y
+		mov	bx, [ball.y]					; y
 		mov 	di, [ball.x]					; x
-		sub		bx, BALL_SIZE / 2
-		sub     di, BALL_SIZE / 2
-		mov		cx, BALL_SIZE
-		mov		dx, BALL_SIZE
+		sub	bx, BALL_SIZE / 2
+		sub   di, BALL_SIZE / 2
+		mov	cx, BALL_SIZE
+		mov	dx, BALL_SIZE
 		call 	fill_rect			
 	}
 	
@@ -128,96 +138,80 @@ end if
 		FillRect [player2.x], [player2.y], [player2.width], PLAYER_HEIGHT		
 	}
 	
-	macro CaptureInput{
-		
-	}
-
+	
 ; -------------------------------------------------------
 ;  CODE
 ; -------------------------------------------------------
 	start:
-        cli 						; disable interrupts 
-        mov		ax, cs           	; code,data,stack share same segment 
-        mov		ds, ax 
-        mov		ss, ax 
-        xor		sp, sp 
-		
-        add		ax, OFFSCREEN_BASE  	; Offscreen buffer segment 
-        mov		OFFSCREEN_SEGMENT, ax 
-        mov		ax, VGA_BASE      		; Video memory segment 
-        mov		VGA_SEGMENT, ax 		; will be in gs 
-        sti								; wer'e done so, reenable interrupts
+		cli 								; disable interrupts 
+		mov	ax, cs           		; code,data,stack share same segment 
+		mov	ds, ax 
+		mov	ss, ax 
+		xor	sp, sp 
+	
+		add	ax, OFFSCREEN_BASE  	; Offscreen buffer segment 
+		mov	OFFSCREEN_SEGMENT, ax 
+		mov	ax, VGA_BASE      	; Video memory segment 
+		mov	VGA_SEGMENT, ax 		; will be in gs 
+		sti								; wer'e done so, reenable interrupts
 
-        ; Setup normal string direction flag so 
-        ; string instructions increment pointers 		
-        cld 	; DF = 0 
-
-        ; Enter 320x200 graphics video mode 
-        mov     ax, 0x0013 		; AH = sub-function (set video mode) 
-								; AL = desired video mode 
-        int 	0x10      		; invoke BIOS VIDEO service 
+		; Setup normal string direction flag (string instructions increment pointers)
+		cld 								; DF = 0 											
+		mov   ax, 0x0013 				; Enter 320x200 graphics video mode 
+		int	0x10      				; invoke BIOS VIDEO service 
 	
 	init_vars:
 	;init players
 		mov [player1.x], PLAYER_OFFSET
 		mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
 		
-		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET+1
-		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)
+		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
+		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
 		
 	;centralize the ball on screen
 		mov [ball.x], (MAXX+1) / 2
-		mov [ball.y], (MAXY+1) / 2
+		mov [ball.y], (MAXY+1) / 2		
 		
-	main_loop:
-	
-		PrepareBuffer			
-		CaptureInput
-		DrawField		
-		DrawBall
+	main_loop:	
+		PrepareBuffer		
+		
+		call	captureInput		
+		
+		DrawField				
+		DrawBall		
 		DrawPlayers				
 		SwapBuffers
+				
+		cmp	[lastKey], VK_SCAPE		
+		jne 	main_loop
+		
+	exit:			
+		mov	ax, 0003h 	; Enter 80x25 text video mode 
+		int 	10h      	; invoke BIOS VIDEO service 		
+		int   20h			; Return to operating system (DOS)
+		jmp   $    			; just in case 
 		
 
-		in 		al, 060h    ; get key code		
-		cmp 	al, VK_SCAPE
-		je 		exit
-		
-		cmp 	al, VK_UP
-		je		up_pressed				
-		
-		cmp 	al, VK_DOWN
-		je		down_pressed					
-		
-		up_pressed:
-			sub     [player1.y], 5	
-			jmp  	key_end
-			
-		down_pressed:
-			add     [player1.y], 5		
-			jmp  	key_end
-
-		key_end:        		 
-			jmp 	main_loop   			
-
-	exit:
-
-        ; Enter 80x25 text video mode 
-        mov 	ax, 0003h 				; AH = sub-function (set video mode) 
-										; AL = desired video mode 
-        int 	10h      				; invoke BIOS VIDEO service 
-
-        ; Return to operating system (DOS)
-        int     20h
-        jmp     $    ; just in case 
-		
-
-    
-include 'inc/vga13h.asm'
 		
 ; -------------------------------------------------------
-; DATA 
+;  SUB ROUTINES
 ; -------------------------------------------------------
-	ball	Ball		
-	player1 Player
-	player2 Player
+		
+captureInput:
+	pusha		
+	in 	al, 060h    	; get key code				
+	cmp 	al, VK_UP
+	jne	captureInput.down
+	sub   [player1.y], 5			
+	.down:
+	cmp 	al, VK_DOWN
+	jne	captureInput.return
+	add   [player1.y], 5			
+	.return:		
+	mov	[lastKey], al	; save the last readed key	
+	popa
+	ret
+	
+		
+include 'inc/vga13h.asm'			
+	

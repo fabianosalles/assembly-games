@@ -1,22 +1,23 @@
-
-
 #change this vartiable to your current "project path"
-DIR = D:\Documentos\Repositorios\asm-games-8086
+DIR = ${CURDIR}/bin
 EXE_TTT = ttt.exe
 EXE_PONG = pong.com
 
-ttt:
+bin:
+	mkdir -p bin
+
+ttt: bin
 	fasm ttt.asm ./bin/$(EXE_TTT)	
 	
-pong:
+pong: bin
 	fasm pong.asm ./bin/$(EXE_PONG)
 
 #run dosbox and set current dir to bin
-run:
-	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin" -c 
+run: bin
+	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin"
 	
-run_ttt:
+run-ttt: ttt
 	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin" -c "$(EXE_TTT)"
 	
-run_pong:
+run-pong: pong
 	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin" -c "$(EXE_PONG)"	

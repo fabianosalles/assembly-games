@@ -21,7 +21,7 @@
 	}			
 			
 	macro VertiLine x, y, l{    
-		mov		di, x
+		mov	di, x
 		mov 	bx, y
 		mov 	cx, l
 		call 	line_v
@@ -33,7 +33,6 @@
 		mov		cx, l
 		call	line_h
 	}
-	
 	
 	macro FillRect x, y, w, h{
 		mov		di, x
