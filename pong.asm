@@ -23,7 +23,7 @@ include 'inc/vga13h.inc'
 	MAXY						equ 200-1
 	PLAYER_HEIGHT			equ 28
 	PLAYER_WIDTH			equ 4
-	PLAYER_OFFSET			equ 2 			; space between player and field
+	PLAYER_OFFSET			equ 2 		; space between player and field
 	BALL_SIZE				equ 4
 	
 	VK_SCAPE					equ 01h
@@ -42,16 +42,16 @@ include 'inc/vga13h.inc'
 ; -------------------------------------------------------
 ;  DATA TYPES 
 ; -------------------------------------------------------
-struc Ball x, y {
+struc Ball x, y, speedX, speedY {
 		.x			dw x    				; max x = 320, a word is necessary
 		.y			dw y					; max y = 200, a byte is enough
+		.speedX	dw 0
+		.speedY	dw 0
+		
 }
-
-struc Player x, y, height, width, speed, score {
+struc Player x, y, speed, score {
 		.x			dw	x
-		.y			dw	y
-		.height	dw height
-		.width	dw width
+		.y			dw	y		
 		.speed	dw speed
 		.score	dw score
 }
@@ -59,9 +59,9 @@ struc Player x, y, height, width, speed, score {
 ; -------------------------------------------------------
 ; DATA 
 ; -------------------------------------------------------
-	ball		Ball 0, 0		
-	player1 	Player ?, ?, PLAYER_HEIGHT, PLAYER_WIDTH, 5, 0
-	player2 	Player ?, ?, PLAYER_HEIGHT, PLAYER_WIDTH, 5, 0
+	ball		Ball 0, 0, 0, 0 
+	player1 	Player ?, ?, 5, 0
+	player2 	Player ?, ?, 5, 0
 	lastKey	db ?
 
 
@@ -127,15 +127,15 @@ end if
 		
 		SetDrawColor COLOR_WHITE
 		VertiLine 0, 0, SCREEN_H			; Render left horizontal line
-		VertiLine MAXX, 0, SCREEN_H			; Render right horizontal line
+		VertiLine MAXX, 0, SCREEN_H		; Render right horizontal line
 		HorizLine 0, 0, SCREEN_W			; Render top line into offscreen buffer 
-		HorizLine 0, MAXY, SCREEN_W 	; Render bottom line into offscreen buffer         	
+		HorizLine 0, MAXY, SCREEN_W 		; Render bottom line into offscreen buffer         	
 	}
 	
 	macro DrawPlayers{
 		SetDrawColor COLOR_WHITE
-		FillRect [player1.x], [player1.y], [player1.width], PLAYER_HEIGHT
-		FillRect [player2.x], [player2.y], [player2.width], PLAYER_HEIGHT		
+		FillRect [player1.x], [player1.y], PLAYER_WIDTH, PLAYER_HEIGHT
+		FillRect [player2.x], [player2.y], PLAYER_WIDTH, PLAYER_HEIGHT		
 	}
 	
 	
@@ -168,15 +168,17 @@ end if
 		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
 		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
 		
-	;centralize the ball on screen
-		mov [ball.x], (MAXX+1) / 2
-		mov [ball.y], (MAXY+1) / 2		
+	;centralize the ball on screen and set initial speed
+		mov [ball.x], 			(MAXX+1) / 2
+		mov [ball.y], 			(MAXY+1) / 2		
+		mov [ball.speedX], 	2
+		mov [ball.speedY], 	2
 		
 	main_loop:	
 		PrepareBuffer		
 		
 		call	captureInput		
-		
+		call 	updateData
 		DrawField				
 		DrawBall		
 		DrawPlayers				
@@ -211,7 +213,46 @@ captureInput:
 	mov	[lastKey], al	; save the last readed key	
 	popa
 	ret
+
+updateData:
+	pusha
+
+	@@:   ; validate top position
+	cmp	[player1.y], 0
+	jge	@f
+	mov	[player1.y], 0		
+			
+			; validate vbottom position
+	@@: 	; if (p1.y + PLAYER_HEIGHT > MAXY) p1.y = MAXY-PLAYER_HEIGHT	
+	mov	ax, [player1.y]
+	add	ax, PLAYER_HEIGHT
+	cmp	ax, MAXY
+	jbe	@f				; fump to fowrard label
+	mov	[player1.y], (MAXY-PLAYER_HEIGHT)	
 	
+	; update ball position (Y axis)
+	@@:  	
+	mov 	ax, [ball.speedX]
+	mov 	bx, [ball.speedY]
+	add	[ball.x], ax	
+	add	[ball.y], bx				
+	@@:	; validate ball position 
+	cmp	[ball.y], (MAXY - BALL_SIZE);
+	jl		@f
+	neg	[ball.speedY]	
+	@@:
+	cmp	[ball.y], 0;
+	jg		@f
+	neg	[ball.speedY]	
+	
+	; update ball position (X axis)
+	@@:
+	
+	
+	.return:
+	popa
+	ret
+		
 		
 include 'inc/vga13h.asm'			
 	
