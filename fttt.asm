@@ -5,8 +5,8 @@
 	format MZ					; multi segment format
 	use16 						; code starts at offset 100h
 	entry			main:start	; exe entry point
-	stack			100h		; stack size
-	include 'macro/proc32.inc'
+	stack			100h		   ; stack size
+	include 'inc/proc32.inc'
 
 ;
 ; constants 
