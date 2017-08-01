@@ -68,17 +68,6 @@ struc Player x, y, speed, score {
 ; -------------------------------------------------------
 ;  MACROS
 ; -------------------------------------------------------
-	macro PrepareBuffer{
-		; Get offscreen buffer segment into ES 
-        mov		ax, OFFSCREEN_SEGMENT
-        mov		es, ax 
-
-        ; Clear offscreen buffer to black 
-        xor     di, di     				; initial destination offset 
-        xor     ax, ax     				; bk-fg pixel color (twice) 
-        mov     cx, VGA_WORDS_COUNT 	; number of words in display memory (320 * 200 / 2) 
-        rep     stosw     				; write two pixels each pass 
-	}
 	
 	macro SwapBuffers{
 		; Preload registers for fast swap 
@@ -138,66 +127,105 @@ end if
 		FillRect [player2.x], [player2.y], PLAYER_WIDTH, PLAYER_HEIGHT		
 	}
 	
+	macro BallCollideRect x0, y0, x1, y1{
+      mov   ax, x0
+      mov   bx, y0
+      mov   cx, x1
+      mov   dc, y1
+      call  ballCollideRect
+	}
+	
+;------------------------------------------------------------------------ 
+; fill_rect - Renders color filled recatngle into offscreen buffer 
+; Input: 
+;   AX = x0
+;   BX = y0 
+;   CX = x1
+;   DX = t1 
+;------------------------------------------------------------------------ 	
+ballCollideRect:
+   pusha   
+   
+   cmp   [ball.x], ax      ; x0 >= ball.x ?   
+   cmp   [ball.x], ax      ; x0 <= ball.x + BALL_SIZE?
+   
+   
+   
+   @@:
+   
+   ;test y
+   
+   popa
+   ret
+	
 	
 ; -------------------------------------------------------
 ;  CODE
 ; -------------------------------------------------------
-	start:
-		cli 								; disable interrupts 
-		mov	ax, cs           		; code,data,stack share same segment 
-		mov	ds, ax 
-		mov	ss, ax 
-		xor	sp, sp 
-	
-		add	ax, OFFSCREEN_BASE  	; Offscreen buffer segment 
-		mov	OFFSCREEN_SEGMENT, ax 
-		mov	ax, VGA_BASE      	; Video memory segment 
-		mov	VGA_SEGMENT, ax 		; will be in gs 
-		sti								; wer'e done so, reenable interrupts
+start:
+   cli 								; disable interrupts 
+   mov	ax, cs           		; code,data,stack share same segment 
+   mov	ds, ax 
+   mov	ss, ax 
+   xor	sp, sp 
 
-		; Setup normal string direction flag (string instructions increment pointers)
-		cld 								; DF = 0 											
-		mov   ax, 0x0013 				; Enter 320x200 graphics video mode 
-		int	0x10      				; invoke BIOS VIDEO service 
-	
-	init_vars:
-	;init players
-		mov [player1.x], PLAYER_OFFSET
-		mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
-		
-		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
-		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
-		
-	;centralize the ball on screen and set initial speed
-		mov [ball.x], 			(MAXX+1) / 2
-		mov [ball.y], 			(MAXY+1) / 2		
-		mov [ball.speedX], 	2
-		mov [ball.speedY], 	2
-		
-	main_loop:	
-		PrepareBuffer		
-		
-		call	captureInput		
-		call 	updateData
-		DrawField				
-		DrawBall		
-		DrawPlayers				
-		SwapBuffers
-				
-		cmp	[lastKey], VK_SCAPE		
-		jne 	main_loop
-		
-	exit:			
-		mov	ax, 0003h 	; Enter 80x25 text video mode 
-		int 	10h      	; invoke BIOS VIDEO service 		
-		int   20h			; Return to operating system (DOS)
-		jmp   $    			; just in case 
-		
+   add	ax, OFFSCREEN_BASE  	; Offscreen buffer segment 
+   mov	OFFSCREEN_SEGMENT, ax 
+   mov	ax, VGA_BASE      	; Video memory segment 
+   mov	VGA_SEGMENT, ax 		; will be in gs 
+   sti								; wer'e done so, reenable interrupts
+
+   ; Setup normal string direction flag (string instructions increment pointers)
+   cld 								; DF = 0 											
+   mov   ax, 0x0013 				; Enter 320x200 graphics video mode 
+   int	0x10      				; invoke BIOS VIDEO service 
+
+   init_vars: ;init players
+   mov [player1.x], PLAYER_OFFSET
+   mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
+   
+   mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
+   mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
+   
+   ;centralize the ball on screen and set initial speed
+   mov [ball.x], 			(MAXX+1) / 2
+   mov [ball.y], 			(MAXY+1) / 2		
+   mov [ball.speedX], 	2
+   mov [ball.speedY], 	2
+   
+   main_loop:	
+   call   prepareBuffer			
+   call   captureInput		
+   call   updateData
+   DrawField
+   DrawBall		
+   DrawPlayers				
+   SwapBuffers
+         
+   cmp	[lastKey], VK_SCAPE		
+   jne 	main_loop
+   
+   exit:			
+   mov	ax, 0003h 	; Enter 80x25 text video mode 
+   int 	10h      	; invoke BIOS VIDEO service 		
+   int   20h			; Return to operating system (DOS)
+   jmp   $    			; just in case 
+   
 
 		
 ; -------------------------------------------------------
 ;  SUB ROUTINES
 ; -------------------------------------------------------
+prepareBuffer:   
+   mov   ax, OFFSCREEN_SEGMENT ; Get offscreen buffer segment into ES 
+   mov   es, ax 
+                                 ; Clear offscreen buffer to black 
+   xor   di, di     				; initial destination offset 
+   xor   ax, ax     				; bk-fg pixel color (twice) 
+   mov   cx, VGA_WORDS_COUNT 	; number of words in display memory (320 * 200 / 2) 
+   rep   stosw     				; write two pixels each pass 
+   ret
+	
 		
 captureInput:
 	pusha		
@@ -246,7 +274,7 @@ updateData:
 	neg	[ball.speedY]	
 	
 	; update ball position (X axis)
-	@@:
+	@@: ; if (ball.x < 0)
 	
 	
 	.return:

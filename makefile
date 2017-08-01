@@ -1,8 +1,20 @@
 #change this vartiable to your current "project path"
 DIR = ${CURDIR}/bin
+
+DEBUG_PATH= /media/fabiano/Dados/Software/DOS/Dosbox/d/
 EXE_TTT = ttt.exe
 EXE_PONG = pong.com
 
+#change this to enable or disble autexec.bat in dosbox startup
+NOAUTOEXEC = -noautoexec
+
+DBGAUTOEXEC = -noautoexec \
+	-c "mount d $(DEBUG_PATH)" \
+	-c "set path=%path%;d:\bp\bin" 
+  
+	   
+MOUNT = -c "mount r $(DIR)" -c "r:" 
+ 
 bin:
 	mkdir -p bin
 
@@ -14,10 +26,20 @@ pong: bin
 
 #run dosbox and set current dir to bin
 run: bin
-	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin"
+	dosbox $(MOUNT) $(NOAUTOEXEC)
 	
 run-ttt: ttt
-	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin" -c "$(EXE_TTT)"
+	dosbox $(MOUNT) $(NOAUTOEXEC) -c $(EXE_TTT)
 	
 run-pong: pong
-	dosbox -noautoexec -c "mount c $(DIR)" -c "c:" -c "cd bin" -c "$(EXE_PONG)"	
+	dosbox $(MOUNT) $(NOAUTOEXEC) -c $(EXE_PONG)
+
+
+###############################################################
+# Debug commands
+# This uses turbo debugger and it is expetcted that in $(DEBUG_PATH)\db\bin exits
+# an valid Tubro pascal with a TD installation 
+###############################################################
+debug-pong:
+	dosbox $(MOUNT) $(DBGAUTOEXEC) -c "cd r:" -c "td $(EXE_PONG)"
+	

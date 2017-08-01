@@ -30,7 +30,7 @@
 	macro HorizLine x, y, l{
 		mov 	di, x
 		mov 	bx, y
-		mov		cx, l
+		mov	cx, l
 		call	line_h
 	}
 	
