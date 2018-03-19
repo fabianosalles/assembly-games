@@ -4,6 +4,9 @@
 ; ------------------------------------------------------------
 ; This program run in VGA mode 13h using direct VGA addressing
 ; ------------------------------------------------------------
+; Use W and A to move player 1.
+; Use Up and down keys to move player 2.
+;
 
 use16 						; 16bit bin (dos COM)
 org	0x0100
@@ -27,10 +30,14 @@ include 'inc/vga13h.inc'
 	BALL_SIZE				equ 4
 	
 	VK_SCAPE					equ 01h
+	VK_W                 equ 11h
+	VK_S                 equ 1Fh
 	VK_UP						equ 48h	
-	VK_DOWN					equ 50h
+	VK_DOWN					equ 50h	
 	VK_LEFT					equ 4Bh			
 	VK_RIGHT					equ 4Dh			
+	
+	CL_WHITE            equ 09h
 	
 	jmp start
 	
@@ -63,6 +70,7 @@ struc Player x, y, speed, score {
 	player1 	Player ?, ?, 5, 0
 	player2 	Player ?, ?, 5, 0
 	lastKey	db ?
+	buffer   db "??$"
 
 
 ; -------------------------------------------------------
@@ -127,37 +135,27 @@ end if
 		FillRect [player2.x], [player2.y], PLAYER_WIDTH, PLAYER_HEIGHT		
 	}
 	
-	macro BallCollideRect x0, y0, x1, y1{
-      mov   ax, x0
-      mov   bx, y0
-      mov   cx, x1
-      mov   dc, y1
-      call  ballCollideRect
-	}
-	
-;------------------------------------------------------------------------ 
-; fill_rect - Renders color filled recatngle into offscreen buffer 
-; Input: 
-;   AX = x0
-;   BX = y0 
-;   CX = x1
-;   DX = t1 
-;------------------------------------------------------------------------ 	
-ballCollideRect:
-   pusha   
-   
-   cmp   [ball.x], ax      ; x0 >= ball.x ?   
-   cmp   [ball.x], ax      ; x0 <= ball.x + BALL_SIZE?
-   
-   
-   
-   @@:
-   
-   ;test y
-   
-   popa
-   ret
-	
+	;
+   macro gotoXY linha, coluna{            
+      mov     ah, 02h      ; ah=02 set cursor position
+      mov     bh, 0        ; page number
+      mov     dh, coluna   ; row
+      mov     dl, linha    ; column
+      int     10h          ; call bios function
+   }
+
+   ; dx = text address
+   ; bx = color
+   ; cx = count of chars to apply the color
+   macro print texto, tamanho, cor{
+      mov     dx, word texto
+      mov     cx, tamanho 
+      mov     bx, cor    
+      mov     ax, 0920h           ; AH=Function number AL=Space character  
+      int     10h                 ; INT 10h/AH=9 - write character and attribute at cursor position.
+      int     21h                 ; INT 21h/AH=9 - output of a string at DS:DX. String must be terminated by '$'. 
+   }
+
 	
 ; -------------------------------------------------------
 ;  CODE
@@ -173,7 +171,7 @@ start:
    mov	OFFSCREEN_SEGMENT, ax 
    mov	ax, VGA_BASE      	; Video memory segment 
    mov	VGA_SEGMENT, ax 		; will be in gs 
-   sti								; wer'e done so, reenable interrupts
+   sti								; we'e done so, reenable interrupts
 
    ; Setup normal string direction flag (string instructions increment pointers)
    cld 								; DF = 0 											
@@ -200,6 +198,7 @@ start:
    DrawField
    DrawBall		
    DrawPlayers				
+   call  printHUD
    SwapBuffers
          
    cmp	[lastKey], VK_SCAPE		
@@ -230,13 +229,21 @@ prepareBuffer:
 captureInput:
 	pusha		
 	in 	al, 060h    	; get key code				
+	cmp   al, VK_W
+	jne   captureInput.s
+	sub   [player1.y], 5
+	.s:
+	cmp   al, VK_S
+	jne   captureInput.up
+	add   [player1.y], 5
+	.up:
 	cmp 	al, VK_UP
 	jne	captureInput.down
-	sub   [player1.y], 5			
+	sub   [player2.y], 5			
 	.down:
 	cmp 	al, VK_DOWN
 	jne	captureInput.return
-	add   [player1.y], 5			
+	add   [player2.y], 5			
 	.return:		
 	mov	[lastKey], al	; save the last readed key	
 	popa
@@ -258,7 +265,7 @@ updateData:
 	jbe	@f				; fump to fowrard label
 	mov	[player1.y], (MAXY-PLAYER_HEIGHT)	
 	
-	; update ball position (Y axis)
+	; update ball position based on it's speed vector
 	@@:  	
 	mov 	ax, [ball.speedX]
 	mov 	bx, [ball.speedY]
@@ -268,19 +275,82 @@ updateData:
 	cmp	[ball.y], (MAXY - BALL_SIZE);
 	jl		@f
 	neg	[ball.speedY]	
+	jmp   updateData.collisions
 	@@:
 	cmp	[ball.y], 0;
 	jg		@f
 	neg	[ball.speedY]	
+			
+	.collisions: ; collisions	
+	;call ballCollidedP1
+	;cmp  ax, ax
+	;jz   @f
+	;neg  [ball.speedX]
+	@@:
+	call ballCollidedP2
+	cmp  ax, ax
+	jz  @f
+	neg  [ball.speedX]
 	
-	; update ball position (X axis)
-	@@: ; if (ball.x < 0)
-	
-	
+	@@:
 	.return:
 	popa
 	ret
-		
+
+ballCollidedP1:         
+   mov   ax, [player1.x]
+   mov   bx, [player1.y]
+   mov   cx, ax
+   add   cx, PLAYER_WIDTH
+   mov   dx, [player1.y]
+   add   dx, PLAYER_HEIGHT
+   call  ballCollideRect;        
+   ret   
+
+ballCollidedP2:
+   ;int   03h   ;software break point
+   mov   ax, [player2.x]
+   mov   bx, [player2.y]
+   mov   cx, MAXX-PLAYER_OFFSET
+   mov   dx, [player2.y]
+   add   dx, PLAYER_HEIGHT
+   call  ballCollideRect;        
+   ret   
+   
+
+;------------------------------------------------------------------------ 
+; ballCollideRect - check if the ball collided with a rect
+; return ( (b.x >= x0 && bx. <= x1) && (b.y >= y1 && b.y <= y2))
+; Input: 
+;   AX = x0
+;   BX = y0 
+;   CX = x1
+;   DX = y1
+;   return value = AX;   
+; TODO: correct the faulty implementation
+;------------------------------------------------------------------------ 	
+ballCollideRect:      
+   cmp   ax, [ball.x]
+   jge   ballCollideRect.true   
+   jmp   ballCollideRect.false         
+   .true:         
+   mov   ax, 01h
+   ret   
+   .false:      
+   mov   ax, 00h   
+   ret
+	
+	
+printHUD:
+   gotoXY 10, 30
+   print buffer, 2, CL_WHITE
+
+   ;gotoXY  0, 10      
+   ; print   str_game_divider, 80, GAME_TEXT_ERRO    
+   ; gotoXY  0, 11
+   ; print   str_game_over, 180, GAME_TEXT_ERRO   
+   
+   ret
 		
 include 'inc/vga13h.asm'			
 	
