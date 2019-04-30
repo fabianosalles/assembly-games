@@ -15,4 +15,4 @@ FASM is an open source assembly language 'compiler' for 8086, x86 and x64 proces
 Since those games are 16bits programs, and use special DOS interrupts, you will need a DOS machine to run them. Games are tested within [DosBox](http://www.dosbox.com/) and the makefile has an entry to run it fom command line. Once you have DosBox and a make util, just type `make run`.
 
 ## Assembly
-The complete instruction set for 8086 microprocessor can be found [here]( http://www.electronics.dit.ie/staff/tscarff/8086_instruction_set/8086_instruction_set.html).
+The complete instruction set for 8086 microprocessor can be found [here]( https://www.tutorialspoint.com/microprocessor/microprocessor_8086_instruction_sets.htm) or in the [doc](/doc) folder.
