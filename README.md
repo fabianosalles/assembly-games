@@ -1,4 +1,4 @@
-# Small assembly written games for 8086 processor
+# Small assembly language written games for 8086 processor
 
 
 The source code use Intel syntax and must be assembled with FASM (Flat Assembler).
