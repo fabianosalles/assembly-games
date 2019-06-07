@@ -18,26 +18,24 @@ include 'inc/vga13h.inc'
 ; -------------------------------------------------------
 	OFFSCREEN_BASE   		equ 0x1000
 	OFFSCREEN_SEGMENT		equ fs
-	VGA_BASE					equ 0xA000
+	VGA_BASE				equ 0xA000
 	VGA_SEGMENT				equ gs
-	VGA_WORDS_COUNT		equ 0x7D00 ; number of words in display memory (320 * 200 / 2) 	
-	USE_VSYNC				equ 1		  ; 0=disabled, 1=enabled 
-	MAXX						equ 320-1
-	MAXY						equ 200-1
+	VGA_WORDS_COUNT			equ 0x7D00 ; number of words in display memory (320 * 200 / 2) 	
+	USE_VSYNC				equ 0		; 0=disabled, 1=enabled 
+	MAXX					equ 320-1
+	MAXY					equ 200-1
 	PLAYER_HEIGHT			equ 28
 	PLAYER_WIDTH			equ 4
 	PLAYER_OFFSET			equ 2 		; space between player and field
 	BALL_SIZE				equ 4
 	
-	VK_SCAPE					equ 01h
-	VK_W                 equ 11h
-	VK_S                 equ 1Fh
-	VK_UP						equ 48h	
+	VK_SCAPE				equ 01h
+	VK_W                 	equ 11h
+	VK_S                 	equ 1Fh
+	VK_UP					equ 48h	
 	VK_DOWN					equ 50h	
 	VK_LEFT					equ 4Bh			
-	VK_RIGHT					equ 4Dh			
-	
-	CL_WHITE            equ 09h
+	VK_RIGHT				equ 4Dh				
 	
 	jmp start
 	
@@ -50,10 +48,10 @@ include 'inc/vga13h.inc'
 ;  DATA TYPES 
 ; -------------------------------------------------------
 struc Ball x, y, speedX, speedY {
-		.x			dw x    				; max x = 320, a word is necessary
-		.y			dw y					; max y = 200, a byte is enough
-		.speedX	dw 0
-		.speedY	dw 0
+		.x			dw x  	; max x = 320, a word is necessary
+		.y			dw y	; max y = 200, a byte is enough
+		.speedX		dw 0
+		.speedY		dw 0
 		
 }
 struc Player x, y, speed, score {
@@ -69,99 +67,99 @@ struc Player x, y, speed, score {
 	ball		Ball 0, 0, 0, 0 
 	player1 	Player ?, ?, 5, 0
 	player2 	Player ?, ?, 5, 0
-	lastKey	db ?
-	buffer   db "??$"
+	lastKey		db ?
+	buffer   	db "$"
 
 
 ; -------------------------------------------------------
 ;  MACROS
 ; -------------------------------------------------------
 	
-	macro SwapBuffers{
-		; Preload registers for fast swap 
-        ; once vertical reset is detected 
-        mov		ax, OFFSCREEN_SEGMENT  
-        mov		ds, ax 
-        xor		si, si 		
-        mov		ax, VGA_SEGMENT
-        mov		es, ax 
-        xor		di, di 		
-        mov		cx, VGA_WORDS_COUNT ; number of words to move (320 * 200 / 2) 	
-        ; Wait for vertical reset 
+macro SwapBuffers{
+	; Preload registers for fast swap 
+	; once vertical reset is detected 
+	mov		ax, OFFSCREEN_SEGMENT  
+	mov		ds, ax 
+	xor		si, si 		
+	mov		ax, VGA_SEGMENT
+	mov		es, ax 
+	xor		di, di 		
+	mov		cx, VGA_WORDS_COUNT ; number of words to move (320 * 200 / 2) 	
+	; Wait for vertical reset 
 if USE_VSYNC
-        mov     dx,0x03DA 
-    vend:  
-        in      al,dx 
-        test    al,0x08 
-        jz      vend 
-    vres:  
-        in      al,dx 
-        test    al,0x08 
-        jnz     vres 
+	mov     dx,0x03DA 
+vend:  
+	in      al,dx 
+	test    al,0x08 
+	jz      vend 
+vres:  
+	in      al,dx 
+	test    al,0x08 
+	jnz     vres 
 end if 
-        ; Copy offscreen buffer into video memory 
-        rep     movsw 	; move two pixels each pass 
-        ; Restore data segment register 
-        mov     ax, cs 
-        mov     ds, ax 	
-	}
+	; Copy offscreen buffer into video memory 
+	rep     movsw 	; move two pixels each pass 
+	; Restore data segment register 
+	mov     ax, cs 
+	mov     ds, ax 	
+}
 
-	macro DrawBall{		
-		; Paint single pixel into offscreen buffer         
-		SetDrawColor COLOR_WHITE
-		mov	bx, [ball.y]					; y
-		mov 	di, [ball.x]					; x
-		sub	bx, BALL_SIZE / 2
-		sub   di, BALL_SIZE / 2
-		mov	cx, BALL_SIZE
-		mov	dx, BALL_SIZE
-		call 	fill_rect			
-	}
-	
-	macro DrawField{
-		SetDrawColor COLOR_GRAY
-		VertiLine 160, 0, SCREEN_H			; Render the middle line (field divider)		
-		
-		SetDrawColor COLOR_WHITE
-		VertiLine 0, 0, SCREEN_H			; Render left horizontal line
-		VertiLine MAXX, 0, SCREEN_H		; Render right horizontal line
-		HorizLine 0, 0, SCREEN_W			; Render top line into offscreen buffer 
-		HorizLine 0, MAXY, SCREEN_W 		; Render bottom line into offscreen buffer         	
-	}
-	
-	macro DrawPlayers{
-		SetDrawColor COLOR_WHITE
-		FillRect [player1.x], [player1.y], PLAYER_WIDTH, PLAYER_HEIGHT
-		FillRect [player2.x], [player2.y], PLAYER_WIDTH, PLAYER_HEIGHT		
-	}
-	
-	;
-   macro gotoXY linha, coluna{            
-      mov     ah, 02h      ; ah=02 set cursor position
-      mov     bh, 0        ; page number
-      mov     dh, coluna   ; row
-      mov     dl, linha    ; column
-      int     10h          ; call bios function
-   }
+macro DrawBall{		
+	; Paint single pixel into offscreen buffer         
+	SetDrawColor COLOR_WHITE
+	mov	bx, [ball.y]					; y
+	mov di, [ball.x]					; x
+	sub	bx, BALL_SIZE / 2
+	sub di, BALL_SIZE / 2
+	mov	cx, BALL_SIZE
+	mov	dx, BALL_SIZE
+	call 	fill_rect			
+}
 
-   ; dx = text address
-   ; bx = color
-   ; cx = count of chars to apply the color
-   macro print texto, tamanho, cor{
-      mov     dx, word texto
-      mov     cx, tamanho 
-      mov     bx, cor    
-      mov     ax, 0920h           ; AH=Function number AL=Space character  
-      int     10h                 ; INT 10h/AH=9 - write character and attribute at cursor position.
-      int     21h                 ; INT 21h/AH=9 - output of a string at DS:DX. String must be terminated by '$'. 
-   }
+macro DrawField{
+	SetDrawColor COLOR_LGRAY
+	VertiLine 160, 0, SCREEN_H			; Render the middle line (field divider)		
+	
+	SetDrawColor COLOR_WHITE
+	VertiLine 0, 0, SCREEN_H			; Render left horizontal line
+	VertiLine MAXX, 0, SCREEN_H		; Render right horizontal line
+	HorizLine 0, 0, SCREEN_W			; Render top line into offscreen buffer 
+	HorizLine 0, MAXY, SCREEN_W 		; Render bottom line into offscreen buffer         	
+}
+
+macro DrawPlayers{
+	SetDrawColor COLOR_WHITE
+	FillRect [player1.x], [player1.y], PLAYER_WIDTH, PLAYER_HEIGHT
+	FillRect [player2.x], [player2.y], PLAYER_WIDTH, PLAYER_HEIGHT		
+}
+
+
+macro gotoXY linha, coluna{            
+	mov     ah, 02h      ; ah=02 set cursor position
+	mov     bh, 0        ; page number
+	mov     dh, coluna   ; row
+	mov     dl, linha    ; column
+	int     10h          ; call bios function
+}
+
+; dx = text address
+; bx = color
+; cx = count of chars to apply the color
+macro print texto, tamanho, cor{
+	mov     dx, word texto
+	mov     cx, tamanho 
+	mov     bx, cor    
+	mov     ax, 0920h           ; AH=Function number AL=Space character  
+	int     10h                 ; INT 10h/AH=9 - write character and attribute at cursor position.
+	int     21h                 ; INT 21h/AH=9 - output of a string at DS:DX. String must be terminated by '$'. 
+}
 
 	
 ; -------------------------------------------------------
 ;  CODE
 ; -------------------------------------------------------
 start:
-   cli 								; disable interrupts 
+   cli 							; disable interrupts 
    mov	ax, cs           		; code,data,stack share same segment 
    mov	ds, ax 
    mov	ss, ax 
@@ -169,47 +167,48 @@ start:
 
    add	ax, OFFSCREEN_BASE  	; Offscreen buffer segment 
    mov	OFFSCREEN_SEGMENT, ax 
-   mov	ax, VGA_BASE      	; Video memory segment 
+   mov	ax, VGA_BASE      		; Video memory segment 
    mov	VGA_SEGMENT, ax 		; will be in gs 
-   sti								; we'e done so, reenable interrupts
+   sti							; we'e done so, reenable interrupts
 
    ; Setup normal string direction flag (string instructions increment pointers)
-   cld 								; DF = 0 											
+   cld 								; Clear Direction Flag for string instructions
    mov   ax, 0x0013 				; Enter 320x200 graphics video mode 
-   int	0x10      				; invoke BIOS VIDEO service 
+   int	0x10      					; invoke BIOS VIDEO service 
 
-   init_vars: ;init players
-   mov [player1.x], PLAYER_OFFSET
-   mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
-   
-   mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
-   mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
-   
-   ;centralize the ball on screen and set initial speed
-   mov [ball.x], 			(MAXX+1) / 2
-   mov [ball.y], 			(MAXY+1) / 2		
-   mov [ball.speedX], 	2
-   mov [ball.speedY], 	2
+   init_vars: 						;init players
+		mov [player1.x], PLAYER_OFFSET
+		mov [player1.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
+
+		mov [player2.x], MAXX-PLAYER_WIDTH-PLAYER_OFFSET
+		mov [player2.y], ((MAXY+1)/2)-(PLAYER_HEIGHT/2)		
+
+		;centralize the ball on screen and set initial speed
+		mov [ball.x], (MAXX+1) / 2
+		mov [ball.y], (MAXY+1) / 2		
+		mov [ball.speedX], 	2
+		mov [ball.speedY], 	2
    
    main_loop:	
-   call   prepareBuffer			
-   call   captureInput		
-   call   updateData
-   DrawField
-   DrawBall		
-   DrawPlayers				
-   call  printHUD
-   SwapBuffers
-         
-   cmp	[lastKey], VK_SCAPE		
-   jne 	main_loop
+		call   prepareBuffer			
+		call   captureInput		
+		call   updateData
+		DrawField
+		DrawBall		
+		DrawPlayers				
+		call  printHUD
+		SwapBuffers
+				
+		cmp	[lastKey], VK_SCAPE		
+		jne main_loop
    
    exit:			
-   mov	ax, 0003h 	; Enter 80x25 text video mode 
-   int 	10h      	; invoke BIOS VIDEO service 		
-   int   20h			; Return to operating system (DOS)
-   jmp   $    			; just in case 
-   
+		mov	ax, 0003h 	; Enter 80x25 text video mode 
+		int 10h      	; invoke BIOS VIDEO service 		
+		int 20h			; Return to operating system (DOS)
+		jmp $    		; just in case 
+
+; end of :start   
 
 		
 ; -------------------------------------------------------
@@ -257,29 +256,43 @@ updateData:
 	jge	@f
 	mov	[player1.y], 0		
 			
-			; validate vbottom position
-	@@: 	; if (p1.y + PLAYER_HEIGHT > MAXY) p1.y = MAXY-PLAYER_HEIGHT	
+	; validate vbottom position
+	; if (p1.y + PLAYER_HEIGHT > MAXY) { p1.y = MAXY-PLAYER_HEIGHT }
+	@@: 	
 	mov	ax, [player1.y]
 	add	ax, PLAYER_HEIGHT
 	cmp	ax, MAXY
-	jbe	@f				; fump to fowrard label
+	jbe	@f
 	mov	[player1.y], (MAXY-PLAYER_HEIGHT)	
 	
 	; update ball position based on it's speed vector
-	@@:  	
-	mov 	ax, [ball.speedX]
-	mov 	bx, [ball.speedY]
+	; ball.x += ball.speedX 
+	; ball.y += ball.sppedY
+	@@:   	
+	mov ax, [ball.speedX]
+	mov bx, [ball.speedY]
 	add	[ball.x], ax	
 	add	[ball.y], bx				
-	@@:	; validate ball position 
-	cmp	[ball.y], (MAXY - BALL_SIZE);
-	jl		@f
-	neg	[ball.speedY]	
-	jmp   updateData.collisions
-	@@:
-	cmp	[ball.y], 0;
-	jg		@f
-	neg	[ball.speedY]	
+
+	; validate ball position (Y axixs)
+	@@: ; if (ball.y > (MAXY - BALL_SIZE)) || ( ball.y <= 0)) { ball.speedY = -ball.speedY }
+	cmp	[ball.y], (MAXY - BALL_SIZE -1)
+	jg	updateData.negY
+	cmp	[ball.y], 0	
+	jg	@f
+	.negY:
+	neg	[ball.speedY]		
+
+	; validate ball position (X axixs)
+	@@: ; if (ball.x > (MAXY - BALL_SIZE)) || (ball.x <=0)) { ball.speedY = -ball.speedY }
+	cmp [ball.x], (MAXX - BALL_SIZE +1)
+	jg updateData.negX
+	cmp [ball.x], 0
+	jg @f
+	.negX:
+	neg [ball.speedX]
+
+	; if ( ball.x < 0) 
 			
 	.collisions: ; collisions	
 	;call ballCollidedP1
@@ -343,7 +356,7 @@ ballCollideRect:
 	
 printHUD:
    gotoXY 10, 30
-   print buffer, 2, CL_WHITE
+   print buffer, 2, COLOR_WHITE
 
    ;gotoXY  0, 10      
    ; print   str_game_divider, 80, GAME_TEXT_ERRO    

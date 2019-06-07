@@ -1,5 +1,5 @@
 #change this vartiable to your current "project path"
-DIR = ${CURDIR}/bin
+DIR = ./bin
 
 DEBUG_PATH= /media/fabiano/Dados/Software/DOS/Dosbox/d/
 EXE_TTT = ttt.exe
