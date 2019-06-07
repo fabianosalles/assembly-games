@@ -35,8 +35,11 @@ include 'inc/vga13h.inc'
 	VK_UP					equ 48h	
 	VK_DOWN					equ 50h	
 	VK_LEFT					equ 4Bh			
-	VK_RIGHT				equ 4Dh				
+	VK_RIGHT				equ 4Dh
 	
+	TMP1					db "0"
+	TMP2					db "0"
+
 	jmp start
 	
 ;left arrow	: 4Bh 
@@ -227,7 +230,7 @@ prepareBuffer:
 		
 captureInput:
 	pusha		
-	in 	al, 060h    	; get key code				
+	in 	  al, 060h    	; get key code				
 	cmp   al, VK_W
 	jne   captureInput.s
 	sub   [player1.y], 5
@@ -248,62 +251,77 @@ captureInput:
 	popa
 	ret
 
-updateData:
-	pusha
 
-	@@:   ; validate top position
-	cmp	[player1.y], 0
+; player Y address must be in bx
+constrainPlayerMovement:	
+	; validate top position
+	pusha
+	cmp	word [bx], 00h
 	jge	@f
-	mov	[player1.y], 0		
-			
-	; validate vbottom position
-	; if (p1.y + PLAYER_HEIGHT > MAXY) { p1.y = MAXY-PLAYER_HEIGHT }
-	@@: 	
-	mov	ax, [player1.y]
+	mov	word [bx], 00h			    
+	@@:
+	; validate bottom position
+	; if ([y] + PLAYER_HEIGHT > MAXY) { [y] = MAXY-PLAYER_HEIGHT }
+	mov	ax, [bx]
 	add	ax, PLAYER_HEIGHT
 	cmp	ax, MAXY
 	jbe	@f
-	mov	[player1.y], (MAXY-PLAYER_HEIGHT)	
-	
-	; update ball position based on it's speed vector
-	; ball.x += ball.speedX 
-	; ball.y += ball.sppedY
-	@@:   	
+	mov	word [bx], (MAXY-PLAYER_HEIGHT)		
+	popa
+	ret
+
+constrainBallMovement:
+	pusha
 	mov ax, [ball.speedX]
 	mov bx, [ball.speedY]
-	add	[ball.x], ax	
-	add	[ball.y], bx				
+	add [ball.x], ax	
+	add [ball.y], bx				
 
 	; validate ball position (Y axixs)
-	@@: ; if (ball.y > (MAXY - BALL_SIZE)) || ( ball.y <= 0)) { ball.speedY = -ball.speedY }
+	; if (ball.y > (MAXY - BALL_SIZE)) || ( ball.y <= 0)) { ball.speedY = -ball.speedY }
+	@@: 
 	cmp	[ball.y], (MAXY - BALL_SIZE -1)
-	jg	updateData.negY
+	jg	constrainBallMovement.negY
 	cmp	[ball.y], 0	
 	jg	@f
 	.negY:
 	neg	[ball.speedY]		
 
 	; validate ball position (X axixs)
-	@@: ; if (ball.x > (MAXY - BALL_SIZE)) || (ball.x <=0)) { ball.speedY = -ball.speedY }
+	; if (ball.x > (MAXY - BALL_SIZE)) || (ball.x <=0)) { ball.speedY = -ball.speedY }
+	@@: 
 	cmp [ball.x], (MAXX - BALL_SIZE +1)
-	jg updateData.negX
+	jg constrainBallMovement.negX
 	cmp [ball.x], 0
 	jg @f
 	.negX:
 	neg [ball.speedX]
 
-	; if ( ball.x < 0) 
+	popa
+	ret
+
+updateData:
+	pusha
+
+	mov bx, player1.y
+	call constrainPlayerMovement
+	
+	mov bx, player2.y
+	call constrainPlayerMovement
+	
+	call constrainBallMovement
+	
 			
-	.collisions: ; collisions	
+
 	;call ballCollidedP1
 	;cmp  ax, ax
 	;jz   @f
 	;neg  [ball.speedX]
 	@@:
-	call ballCollidedP2
-	cmp  ax, ax
-	jz  @f
-	neg  [ball.speedX]
+	;call ballCollidedP2
+	;cmp  ax, ax
+	;jz  @f
+	;neg  [ball.speedX]
 	
 	@@:
 	.return:
@@ -333,16 +351,27 @@ ballCollidedP2:
 
 ;------------------------------------------------------------------------ 
 ; ballCollideRect - check if the ball collided with a rect
-; return ( (b.x >= x0 && bx. <= x1) && (b.y >= y1 && b.y <= y2))
+; return ( 
+;			(ball.x >= x0 && ball.x <= x1) || (ball.x+BALL_W >= x0  && ball.x+BALL_W <= x1)) &&
+;           (ball.y >= y0 && ball.y <= y1) || (ball.y+BALL_H >= y0 && ball.y+BALL_H <= y1) 
+;         )
 ; Input: 
 ;   AX = x0
 ;   BX = y0 
 ;   CX = x1
 ;   DX = y1
 ;   return value = AX;   
-; TODO: correct the faulty implementation
 ;------------------------------------------------------------------------ 	
 ballCollideRect:      
+	pusha
+	mov [TMP1], 0  ;hold 1st side of expression (x test)
+	mov [TMP2], 0  ;hold 2st side of expression (y test)	
+	; ( (ball.x >= x0 && ball.x <= x1) || (ball.x+BALL_W >= x0) && (ball.x+BALL_W <=x1) )
+	cmp [ball.x], ax			; ball.x >= x0
+	jl ballCollideRect.false
+	cmp [ball.x], cx			; ball.y <= x1
+	jg ballCollideRect.false
+
    cmp   ax, [ball.x]
    jge   ballCollideRect.true   
    jmp   ballCollideRect.false         
@@ -351,6 +380,8 @@ ballCollideRect:
    ret   
    .false:      
    mov   ax, 00h   
+
+   popa
    ret
 	
 	
