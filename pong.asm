@@ -37,8 +37,10 @@ include 'inc/vga13h.inc'
 	VK_LEFT					equ 4Bh			
 	VK_RIGHT				equ 4Dh
 	
-	TMP1					db "0"
-	TMP2					db "0"
+	TMP1					db "00"
+	TMP2					db "00"
+	TMP3					db "00"
+	TMP4					db "00"
 
 	jmp start
 	
@@ -310,8 +312,7 @@ updateData:
 	call constrainPlayerMovement
 	
 	call constrainBallMovement
-	
-			
+				
 
 	;call ballCollidedP1
 	;cmp  ax, ax
@@ -364,13 +365,44 @@ ballCollidedP2:
 ;------------------------------------------------------------------------ 	
 ballCollideRect:      
 	pusha
-	mov [TMP1], 0  ;hold 1st side of expression (x test)
-	mov [TMP2], 0  ;hold 2st side of expression (y test)	
-	; ( (ball.x >= x0 && ball.x <= x1) || (ball.x+BALL_W >= x0) && (ball.x+BALL_W <=x1) )
+	mov [TMP1], 01h  ;hold 1st side of expression (x test)
+	mov [TMP2], 01h  ;hold 2st side of expression (y test)	
+	
+	; representing expressions with variables, we have
+	; (A || B) && (C || D)
+
+	
+	.A:  ;A = (ball.x >= x0 && ball.x <= x1)
 	cmp [ball.x], ax			; ball.x >= x0
-	jl ballCollideRect.false
+	jl  @f
 	cmp [ball.x], cx			; ball.y <= x1
-	jg ballCollideRect.false
+	jg  @f
+    jmp ballCollideRect.B	
+	@@: ; A is false
+	mov [TMP1], 00h
+	
+	.B: ;B = (ball.x+BALL_W >= x0  && ball.x+BALL_W <= x1) 
+	push ax
+	mov  ax, [ball.x]
+	add  ax, BALL_SIZE
+	mov  word [TMP3], ax     ; TMP3 = ball.x+BALL_W
+	pop  ax
+		
+	cmp word [TMP3], ax		; ball.x+BALL_W >= x0
+	jl  @f
+	cmp word [TMP3], cx     ; ball.x+BALL_W <= x1
+	jg   @f
+	jmp  ballCollideRect.C
+	@@: ; B is false
+	mov [TMP2], 00h
+	
+	.C:  ;C = (ball.y >= y0 && ball.y <= y1)
+
+
+	;D = (ball.y+BALL_H >= y0 && ball.y+BALL_H <= y1)
+	.D: 
+
+
 
    cmp   ax, [ball.x]
    jge   ballCollideRect.true   
