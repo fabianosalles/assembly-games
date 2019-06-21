@@ -353,16 +353,16 @@ ballCollidedP2:
 ;------------------------------------------------------------------------ 
 ; ballCollideRect - check if the ball collided with a rect
 ; return ( 
-;			(ball.x >= x0 && ball.x <= x1) || (ball.x+BALL_W >= x0  && ball.x+BALL_W <= x1)) &&
-;           (ball.y >= y0 && ball.y <= y1) || (ball.y+BALL_H >= y0 && ball.y+BALL_H <= y1) 
-;         )
+; 		(ball.x >= x0 && ball.x <= x1) || (ball.x+BALL_W >= x0  && ball.x+BALL_W <= x1)) &&
+;       (ball.y >= y0 && ball.y <= y1) || (ball.y+BALL_H >= y0 && ball.y+BALL_H <= y1) 
+; )
 ; Input: 
 ;   AX = x0
 ;   BX = y0 
 ;   CX = x1
 ;   DX = y1
 ;   return value = AX;   
-;------------------------------------------------------------------------ 	
+;------------------------------------------------------------------------
 ballCollideRect:      
 	pusha
 	mov [TMP1], 01h  ;hold 1st side of expression (x test)
@@ -429,4 +429,3 @@ printHUD:
    ret
 		
 include 'inc/vga13h.asm'			
-	
