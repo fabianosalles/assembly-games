@@ -50,7 +50,7 @@ void random_pixels(long count, void(*plot_func)(int x,int y, unsigned char color
         y = rand()%SCREEN_HEIGHT;
         color = rand()%NUM_COLORS;
         if (plot_func == NULL)
-            FRAME_BUFFER[ y<<8 +y<<6 + x] = color;
+            FRAME_BUFFER[ (y<<8) + (y<<6) + x] = color;
         else
             plot_func(x, y, color);
     }

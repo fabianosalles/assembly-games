@@ -29,14 +29,12 @@ int main(void){
 	float time = 0.0;
 	const COUNT = 5 * 1000;
 	srand(*RTC);
-	set_video_mode(MODE_GRAPHIC);	
+
+	set_mode_13h(MODE_GRAPHIC);	
+	time = profile(COUNT, draw_random_lines);	
+	set_mode_text(MODE_TEXT);	
 	
-	time = profile(COUNT, draw_random_lines);
-	
-	clear_screen();	
-	set_video_mode(MODE_TEXT);	
-	
-	printf("%i lines drawed in %.2f seconds using Bresenhan algorithm\n", (COUNT * 10), time);
+	printf("%d lines drawed in %.2f seconds using Bresenhan algorithm\n", COUNT, time);
 	printf("performance: %2.f lines per second.\n", (float)(COUNT)/time);
 
 	return 0;

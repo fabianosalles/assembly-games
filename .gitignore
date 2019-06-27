@@ -1,6 +1,7 @@
 bin/
 *.obj
 *.exe
+c/bin/
 .vscode/
 *.swp
 *.SWP
